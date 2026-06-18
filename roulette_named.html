@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>発表順ルーレット</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+    background: #f5f4f0;
+    color: #1a1a1a;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #1a1a1a;
+    margin-bottom: 1.5rem;
+  }
+  .canvas-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+  }
+  canvas { display: block; }
+  .spin-btn {
+    display: block;
+    margin: 0 auto 1.5rem;
+    padding: 12px 48px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 12px;
+    border: 1.5px solid #534AB7;
+    background: #fff;
+    color: #534AB7;
+    transition: background 0.15s, color 0.15s;
+  }
+  .spin-btn:hover { background: #534AB7; color: #fff; }
+  .spin-btn:disabled { opacity: 0.4; cursor: not-allowed; background: #fff; color: #534AB7; }
+  .results { width: 100%; max-width: 480px; }
+  .result-label {
+    font-size: 13px;
+    color: #888;
+    text-align: center;
+    margin-bottom: 10px;
+    letter-spacing: 0.05em;
+  }
+  .result-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .result-item {
+    background: #fff;
+    border: 1px solid #e8e6e0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  .result-item.show { opacity: 1; transform: translateY(0); }
+  .order-num {
+    font-size: 20px;
+    font-weight: 700;
+    color: #534AB7;
+    min-width: 24px;
+  }
+  .order-name { font-size: 13px; color: #555; }
+  .reset-btn {
+    display: block;
+    margin: 0 auto;
+    background: none;
+    border: none;
+    font-size: 13px;
+    color: #888;
+    text-decoration: underline;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .reset-btn:hover { color: #534AB7; }
+</style>
+</head>
+<body>
+
+<h1>発表順ルーレット</h1>
+
+<div class="canvas-wrap">
+  <canvas id="wheel" width="360" height="360"></canvas>
+</div>
+
+<button class="spin-btn" id="spinBtn" onclick="startSpin()">スピン！</button>
+
+<div id="resultsWrap" style="display:none">
+  <div class="results">
+    <p class="result-label">発表順</p>
+    <div class="result-list" id="resultList"></div>
+    <button class="reset-btn" onclick="resetAll()">もう一度</button>
+  </div>
+</div>
+
+<script>
+const NAMES = ['Kei','Matsuoka','Chiharun','miya','michomu','moeda','amaya','kamimura','mass_meets'];
+const N = NAMES.length;
+const FILLS   = ['#EEEDFE','#E1F5EE','#FAECE7','#FBEAF0','#E6F1FB','#EAF3DE','#FAEEDA','#FCEBEB','#F1EFE8'];
+const STROKES = ['#534AB7','#0F6E56','#993C1D','#993556','#185FA5','#3B6D11','#854F0B','#A32D2D','#5F5E5A'];
+
+let angle = 0;
+let spinning = false;
+
+const canvas = document.getElementById('wheel');
+const ctx = canvas.getContext('2d');
+const W = 360, CX = W/2, CY = W/2, R = 150;
+
+function drawWheel(a) {
+  ctx.clearRect(0, 0, W, W);
+  const slice = Math.PI * 2 / N;
+  for (let i = 0; i < N; i++) {
+    const s = a + i * slice, e = s + slice;
+    ctx.beginPath();
+    ctx.moveTo(CX, CY);
+    ctx.arc(CX, CY, R, s, e);
+    ctx.closePath();
+    ctx.fillStyle = FILLS[i];
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(CX, CY);
+    ctx.rotate(s + slice / 2);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = STROKES[i];
+    ctx.font = '600 12px -apple-system, sans-serif';
+    ctx.fillText(NAMES[i], R - 10, 5);
+    ctx.restore();
+  }
+  // center circle
+  ctx.beginPath();
+  ctx.arc(CX, CY, 18, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.strokeStyle = '#d6d4ce';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // pointer
+  ctx.save();
+  ctx.translate(CX + R + 18, CY);
+  ctx.beginPath();
+  ctx.moveTo(0, -10);
+  ctx.lineTo(-18, 0);
+  ctx.lineTo(0, 10);
+  ctx.closePath();
+  ctx.fillStyle = '#534AB7';
+  ctx.fill();
+  ctx.restore();
+}
+
+function startSpin() {
+  if (spinning) return;
+  spinning = true;
+  document.getElementById('spinBtn').disabled = true;
+  document.getElementById('resultsWrap').style.display = 'none';
+
+  const shuffled = [...NAMES].sort(() => Math.random() - 0.5);
+  const totalRot = Math.PI * 2 * (6 + Math.random() * 4);
+  const duration = 3800;
+  const startAngle = angle;
+  const startTime = performance.now();
+
+  function ease(t) { return 1 - Math.pow(1 - t, 3); }
+  function frame(now) {
+    const t = Math.min((now - startTime) / duration, 1);
+    angle = startAngle + totalRot * ease(t);
+    drawWheel(angle);
+    if (t < 1) {
+      requestAnimationFrame(frame);
+    } else {
+      spinning = false;
+      showResults(shuffled);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function showResults(order) {
+  const list = document.getElementById('resultList');
+  list.innerHTML = '';
+  document.getElementById('resultsWrap').style.display = 'block';
+  order.forEach((name, i) => {
+    const item = document.createElement('div');
+    item.className = 'result-item';
+    item.innerHTML = `<span class="order-num">${i + 1}</span><span class="order-name">${name}</span>`;
+    list.appendChild(item);
+    setTimeout(() => item.classList.add('show'), i * 100);
+  });
+  setTimeout(() => {
+    const btn = document.getElementById('spinBtn');
+    btn.disabled = false;
+    btn.textContent = 'もう一度スピン';
+  }, order.length * 100 + 300);
+}
+
+function resetAll() {
+  document.getElementById('resultsWrap').style.display = 'none';
+  const btn = document.getElementById('spinBtn');
+  btn.textContent = 'スピン！';
+  btn.disabled = false;
+}
+
+drawWheel(angle);
+</script>
+</body>
+</html>
